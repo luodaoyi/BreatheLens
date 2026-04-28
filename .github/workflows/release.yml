@@ -42,7 +42,7 @@ jobs:
             os: macos-15
             python-architecture: arm64
           - target: macos-x64
-            os: macos-15-intel
+            os: macos-13
             python-architecture: x64
           - target: linux-x64
             os: ubuntu-24.04
