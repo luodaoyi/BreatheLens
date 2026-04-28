@@ -1,0 +1,165 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      build_self_hosted:
+        description: "Build self-hosted targets: Linux x86 and LoongArch64"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      release_tag:
+        description: "Optional tag name for manual release, for example v0.1.0"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build-hosted:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows-x64
+            os: windows-latest
+            python-architecture: x64
+          - target: windows-x86
+            os: windows-latest
+            python-architecture: x86
+          - target: windows-arm64
+            os: windows-11-arm
+            python-architecture: arm64
+          - target: macos-arm64
+            os: macos-15
+            python-architecture: arm64
+          - target: macos-x64
+            os: macos-15-intel
+            python-architecture: x64
+          - target: linux-x64
+            os: ubuntu-24.04
+            python-architecture: x64
+          - target: linux-arm64
+            os: ubuntu-24.04-arm
+            python-architecture: arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux GUI build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y patchelf libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xfixes0 libxcb-xinerama0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          architecture: ${{ matrix.python-architecture }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Create venv and install dependencies
+        shell: bash
+        run: |
+          uv venv .venv --python python
+          uv sync
+
+      - name: Build one-file binary
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+        run: |
+          uv run python build.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BreatheLens-${{ matrix.target }}
+          path: dist/BreatheLens-${{ matrix.target }}.zip
+          if-no-files-found: error
+
+  build-self-hosted:
+    name: Build ${{ matrix.target }}
+    if: github.event_name == 'workflow_dispatch' && inputs.build_self_hosted == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86
+            runs-on: '["self-hosted","linux","X86"]'
+          - target: linux-loongarch64
+            runs-on: '["self-hosted","linux","LoongArch64"]'
+    runs-on: ${{ fromJSON(matrix.runs-on) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Create venv and install dependencies
+        shell: bash
+        run: |
+          uv venv .venv --python 3.13
+          uv sync
+
+      - name: Build one-file binary
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+        run: |
+          uv run python build.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BreatheLens-${{ matrix.target }}
+          path: dist/BreatheLens-${{ matrix.target }}.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish Release
+    needs:
+      - build-hosted
+      - build-self-hosted
+    if: always() && needs.build-hosted.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != '')
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: List assets
+        run: find release-assets -type f -maxdepth 3 -print
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.release_tag }}
+          name: BreatheLens ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || inputs.release_tag }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          files: release-assets/**/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

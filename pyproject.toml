@@ -1,0 +1,21 @@
+[project]
+name = "breathelens"
+version = "0.1.0"
+description = "BreatheLens: ResMed CPAP SD card analyzer with PySide6/QML UI"
+requires-python = ">=3.11"
+dependencies = [
+    "PySide6>=6.8",
+    "openpyxl>=3.1",
+    "Nuitka[onefile]>=2.6",
+]
+
+[project.scripts]
+breathelens = "resmed_analyzer.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["resmed_analyzer"]
+artifacts = ["ui"]

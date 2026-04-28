@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.python-version
+
+# Build outputs
+build/
+dist/
+Dist/
+*.build/
+*.dist/
+*.onefile-build/
+compilation-report.xml
+
+# Generated reports
+outputs/
+tools/
+
+# Local ResMed SD-card data. Do not commit private therapy data.
+DATALOG/
+SETTINGS/
+Data/
+STR.edf
+Identification.*
+*.edf
+*.crc
+*.tgt
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
