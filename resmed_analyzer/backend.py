@@ -235,7 +235,7 @@ class Backend(QObject):
         days = result.str_days[-180:]
 
         def points(getter) -> list[dict]:
-            return [{"label": d.date[5:], "value": round(float(getter(d)), 2)} for d in days]
+            return [{"date": d.date, "label": d.date[5:], "value": round(float(getter(d)), 2)} for d in days]
 
         return [
             {"title": "AHI 趋势", "unit": "次/小时", "color": "#07C160", "warning": 5.0, "points": points(lambda d: d.ahi)},

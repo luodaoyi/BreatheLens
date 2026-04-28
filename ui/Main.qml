@@ -95,11 +95,41 @@ ApplicationWindow {
     component MetricChart: Rectangle {
         id: chartBox
         required property var series
+        property int hoverIndex: -1
+        property real hoverX: 0
+        property real hoverY: 0
+        property real graphLeft: 48
+        property real graphRight: 18
+        property real graphTop: 12
+        property real graphBottom: 42
+        property real graphMaxValue: 1
         Layout.fillWidth: true
         Layout.preferredHeight: 220
         radius: 10
         color: "#FFFFFF"
         border.color: "#E5E7EB"
+
+        function updateHover(mouseX, mouseY, canvasWidth, canvasHeight) {
+            var points = series.points || []
+            if (points.length === 0) {
+                hoverIndex = -1
+                return
+            }
+            var graphW = Math.max(1, canvasWidth - graphLeft - graphRight)
+            var graphH = Math.max(1, canvasHeight - graphTop - graphBottom)
+            if (mouseX < graphLeft || mouseX > graphLeft + graphW || mouseY < graphTop || mouseY > graphTop + graphH) {
+                hoverIndex = -1
+                chartCanvas.requestPaint()
+                return
+            }
+            var ratio = (mouseX - graphLeft) / graphW
+            var index = Math.round(ratio * (points.length - 1))
+            index = Math.max(0, Math.min(points.length - 1, index))
+            hoverIndex = index
+            hoverX = graphLeft + (points.length === 1 ? graphW : index / (points.length - 1) * graphW)
+            hoverY = graphTop + graphH - (Number(points[index].value || 0) / graphMaxValue) * graphH
+            chartCanvas.requestPaint()
+        }
 
         Connections {
             target: root.appBackend
@@ -136,96 +166,161 @@ ApplicationWindow {
                 }
             }
 
-            Canvas {
-                id: chartCanvas
+            Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                antialiasing: true
-                Component.onCompleted: requestPaint()
-                onWidthChanged: requestPaint()
-                onHeightChanged: requestPaint()
-                onPaint: {
-                    var ctx = getContext("2d")
-                    ctx.reset()
-                    ctx.clearRect(0, 0, width, height)
 
-                    var points = chartBox.series.points || []
-                    var left = 48
-                    var right = 18
-                    var top = 12
-                    var bottom = 30
-                    var graphW = Math.max(1, width - left - right)
-                    var graphH = Math.max(1, height - top - bottom)
+                Canvas {
+                    id: chartCanvas
+                    anchors.fill: parent
+                    antialiasing: true
+                    Component.onCompleted: requestPaint()
+                    onWidthChanged: requestPaint()
+                    onHeightChanged: requestPaint()
+                    onPaint: {
+                        var ctx = getContext("2d")
+                        ctx.reset()
+                        ctx.clearRect(0, 0, width, height)
 
-                    ctx.strokeStyle = "#E5E7EB"
-                    ctx.lineWidth = 1
-                    ctx.beginPath()
-                    ctx.moveTo(left, top)
-                    ctx.lineTo(left, top + graphH)
-                    ctx.lineTo(left + graphW, top + graphH)
-                    ctx.stroke()
+                        var points = chartBox.series.points || []
+                        var left = chartBox.graphLeft
+                        var right = chartBox.graphRight
+                        var top = chartBox.graphTop
+                        var bottom = chartBox.graphBottom
+                        var graphW = Math.max(1, width - left - right)
+                        var graphH = Math.max(1, height - top - bottom)
 
-                    if (points.length === 0) {
-                        ctx.fillStyle = "#9CA3AF"
-                        ctx.font = "13px sans-serif"
-                        ctx.fillText("暂无图表数据", left + 8, top + 30)
-                        return
-                    }
-
-                    var maxValue = Math.max(Number(chartBox.series.warning || 0), 1)
-                    for (var i = 0; i < points.length; i++) {
-                        maxValue = Math.max(maxValue, Number(points[i].value || 0))
-                    }
-                    maxValue = maxValue * 1.15
-
-                    ctx.fillStyle = "#6B7280"
-                    ctx.font = "11px sans-serif"
-                    ctx.textAlign = "right"
-                    ctx.fillText(maxValue.toFixed(maxValue >= 10 ? 0 : 1), left - 8, top + 8)
-                    ctx.fillText("0", left - 8, top + graphH)
-
-                    var warning = Number(chartBox.series.warning || 0)
-                    if (warning > 0) {
-                        var warnY = top + graphH - (warning / maxValue) * graphH
-                        ctx.strokeStyle = "#FCA5A5"
-                        ctx.setLineDash([4, 4])
+                        ctx.strokeStyle = "#E5E7EB"
+                        ctx.lineWidth = 1
                         ctx.beginPath()
-                        ctx.moveTo(left, warnY)
-                        ctx.lineTo(left + graphW, warnY)
+                        ctx.moveTo(left, top)
+                        ctx.lineTo(left, top + graphH)
+                        ctx.lineTo(left + graphW, top + graphH)
                         ctx.stroke()
-                        ctx.setLineDash([])
-                        ctx.fillStyle = "#E11D48"
-                        ctx.textAlign = "left"
-                        ctx.fillText("阈值 " + warning, left + 8, warnY - 5)
-                    }
 
-                    ctx.strokeStyle = chartBox.series.color || "#07C160"
-                    ctx.lineWidth = 2
-                    ctx.beginPath()
-                    for (var j = 0; j < points.length; j++) {
-                        var x = left + (points.length === 1 ? graphW : j / (points.length - 1) * graphW)
-                        var y = top + graphH - (Number(points[j].value || 0) / maxValue) * graphH
-                        if (j === 0) ctx.moveTo(x, y)
-                        else ctx.lineTo(x, y)
-                    }
-                    ctx.stroke()
+                        if (points.length === 0) {
+                            ctx.fillStyle = "#9CA3AF"
+                            ctx.font = "13px sans-serif"
+                            ctx.fillText("暂无图表数据", left + 8, top + 30)
+                            return
+                        }
 
-                    ctx.fillStyle = chartBox.series.color || "#07C160"
-                    var step = Math.max(1, Math.floor(points.length / 12))
-                    for (var k = 0; k < points.length; k += step) {
-                        var px = left + (points.length === 1 ? graphW : k / (points.length - 1) * graphW)
-                        var py = top + graphH - (Number(points[k].value || 0) / maxValue) * graphH
+                        var maxValue = Math.max(Number(chartBox.series.warning || 0), 1)
+                        for (var i = 0; i < points.length; i++) {
+                            maxValue = Math.max(maxValue, Number(points[i].value || 0))
+                        }
+                        maxValue = maxValue * 1.15
+                        chartBox.graphMaxValue = maxValue
+
+                        ctx.fillStyle = "#6B7280"
+                        ctx.font = "11px sans-serif"
+                        ctx.textAlign = "right"
+                        ctx.fillText(maxValue.toFixed(maxValue >= 10 ? 0 : 1), left - 8, top + 8)
+                        ctx.fillText("0", left - 8, top + graphH)
+
+                        var tickCount = Math.min(7, points.length)
+                        ctx.textAlign = "center"
+                        ctx.strokeStyle = "#EEF2F0"
+                        ctx.fillStyle = "#6B7280"
+                        for (var tick = 0; tick < tickCount; tick++) {
+                            var tickIndex = tickCount === 1 ? 0 : Math.round(tick / (tickCount - 1) * (points.length - 1))
+                            var tickX = left + (points.length === 1 ? graphW : tickIndex / (points.length - 1) * graphW)
+                            ctx.beginPath()
+                            ctx.moveTo(tickX, top)
+                            ctx.lineTo(tickX, top + graphH)
+                            ctx.stroke()
+                            ctx.fillText(points[tickIndex].label || "", tickX, top + graphH + 24)
+                        }
+
+                        var warning = Number(chartBox.series.warning || 0)
+                        if (warning > 0) {
+                            var warnY = top + graphH - (warning / maxValue) * graphH
+                            ctx.strokeStyle = "#FCA5A5"
+                            ctx.setLineDash([4, 4])
+                            ctx.beginPath()
+                            ctx.moveTo(left, warnY)
+                            ctx.lineTo(left + graphW, warnY)
+                            ctx.stroke()
+                            ctx.setLineDash([])
+                            ctx.fillStyle = "#E11D48"
+                            ctx.textAlign = "left"
+                            ctx.fillText("阈值 " + warning, left + 8, warnY - 5)
+                        }
+
+                        ctx.strokeStyle = chartBox.series.color || "#07C160"
+                        ctx.lineWidth = 2
                         ctx.beginPath()
-                        ctx.arc(px, py, 2.5, 0, Math.PI * 2)
-                        ctx.fill()
-                    }
+                        for (var j = 0; j < points.length; j++) {
+                            var x = left + (points.length === 1 ? graphW : j / (points.length - 1) * graphW)
+                            var y = top + graphH - (Number(points[j].value || 0) / maxValue) * graphH
+                            if (j === 0) ctx.moveTo(x, y)
+                            else ctx.lineTo(x, y)
+                        }
+                        ctx.stroke()
 
-                    ctx.fillStyle = "#6B7280"
-                    ctx.font = "11px sans-serif"
-                    ctx.textAlign = "left"
-                    ctx.fillText(points[0].label || "", left, top + graphH + 20)
-                    ctx.textAlign = "right"
-                    ctx.fillText(points[points.length - 1].label || "", left + graphW, top + graphH + 20)
+                        ctx.fillStyle = chartBox.series.color || "#07C160"
+                        var step = Math.max(1, Math.floor(points.length / 12))
+                        for (var k = 0; k < points.length; k += step) {
+                            var px = left + (points.length === 1 ? graphW : k / (points.length - 1) * graphW)
+                            var py = top + graphH - (Number(points[k].value || 0) / maxValue) * graphH
+                            ctx.beginPath()
+                            ctx.arc(px, py, 2.5, 0, Math.PI * 2)
+                            ctx.fill()
+                        }
+
+                        if (chartBox.hoverIndex >= 0) {
+                            ctx.strokeStyle = "#111827"
+                            ctx.globalAlpha = 0.28
+                            ctx.lineWidth = 1
+                            ctx.beginPath()
+                            ctx.moveTo(chartBox.hoverX, top)
+                            ctx.lineTo(chartBox.hoverX, top + graphH)
+                            ctx.stroke()
+                            ctx.globalAlpha = 1
+                            ctx.fillStyle = "#111827"
+                            ctx.beginPath()
+                            ctx.arc(chartBox.hoverX, chartBox.hoverY, 4, 0, Math.PI * 2)
+                            ctx.fill()
+                        }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.NoButton
+                    onPositionChanged: function(mouse) {
+                        chartBox.updateHover(mouse.x, mouse.y, width, height)
+                    }
+                    onExited: {
+                        chartBox.hoverIndex = -1
+                        chartCanvas.requestPaint()
+                    }
+                }
+
+                Rectangle {
+                    visible: chartBox.hoverIndex >= 0
+                    width: Math.max(138, tooltipText.implicitWidth + 20)
+                    height: 52
+                    radius: 8
+                    color: "#111827"
+                    opacity: 0.94
+                    x: Math.min(parent.width - width - 8, Math.max(8, chartBox.hoverX - width / 2))
+                    y: Math.max(8, chartBox.hoverY - height - 12)
+                    Text {
+                        id: tooltipText
+                        anchors.centerIn: parent
+                        text: {
+                            var points = chartBox.series.points || []
+                            if (chartBox.hoverIndex < 0 || chartBox.hoverIndex >= points.length) return ""
+                            var point = points[chartBox.hoverIndex]
+                            return (point.date || point.label) + "\n" + point.value + " " + (chartBox.series.unit || "")
+                        }
+                        color: "#FFFFFF"
+                        font.pixelSize: 12
+                        lineHeight: 1.2
+                        horizontalAlignment: Text.AlignHCenter
+                    }
                 }
             }
         }
@@ -279,6 +374,10 @@ ApplicationWindow {
         }
         rowHeightProvider: function(row) {
             return 34
+        }
+        ScrollBar.vertical: ScrollBar {
+            policy: ScrollBar.AlwaysOn
+            active: true
         }
         delegate: Rectangle {
             required property var display
