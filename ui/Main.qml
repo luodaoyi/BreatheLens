@@ -12,6 +12,23 @@ ApplicationWindow {
     color: "#F5F7F6"
     readonly property var appBackend: backend
 
+    function columnWidth(column) {
+        var count = root.appBackend ? root.appBackend.tableHeaders.length : 0
+        if (column === 0) return 112
+        if (count >= 11) return 74
+        if (count <= 7) return 96
+        return 82
+    }
+
+    function colorForCell(column, value) {
+        var headers = root.appBackend ? root.appBackend.tableHeaders : []
+        var name = headers[column] || ""
+        var numberValue = Number(value)
+        if (name.indexOf("漏气") >= 0 && numberValue >= 24) return "#E11D48"
+        if (name.indexOf("AHI") >= 0 && numberValue >= 5) return "#D97706"
+        return "#1F2937"
+    }
+
     FontLoader { id: uiFont; source: "" }
 
     FolderDialog {
@@ -36,6 +53,7 @@ ApplicationWindow {
         background: Rectangle {
             radius: 8
             color: parent.down ? "#05A854" : parent.hovered ? "#06B95D" : "#07C160"
+            opacity: parent.enabled ? 1 : 0.55
         }
         contentItem: Text {
             text: parent.text
@@ -56,6 +74,7 @@ ApplicationWindow {
             radius: 8
             color: parent.hovered ? "#E9F7EF" : "#FFFFFF"
             border.color: "#DDE7E2"
+            opacity: parent.enabled ? 1 : 0.55
         }
         contentItem: Text {
             text: parent.text
@@ -66,64 +85,226 @@ ApplicationWindow {
         }
     }
 
+    component MetricChart: Rectangle {
+        id: chartBox
+        required property var series
+        Layout.fillWidth: true
+        Layout.preferredHeight: 190
+        radius: 10
+        color: "#FFFFFF"
+        border.color: "#E5E7EB"
+
+        Connections {
+            target: root.appBackend
+            function onChartSeriesChanged() {
+                chartCanvas.requestPaint()
+            }
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 6
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Rectangle {
+                    width: 10
+                    height: 10
+                    radius: 5
+                    color: chartBox.series.color || "#07C160"
+                }
+                Text {
+                    text: chartBox.series.title || ""
+                    color: "#111827"
+                    font.pixelSize: 14
+                    font.bold: true
+                    Layout.fillWidth: true
+                }
+                Text {
+                    text: chartBox.series.unit || ""
+                    color: "#6B7280"
+                    font.pixelSize: 12
+                }
+            }
+
+            Canvas {
+                id: chartCanvas
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                antialiasing: true
+                onWidthChanged: requestPaint()
+                onHeightChanged: requestPaint()
+                onPaint: {
+                    var ctx = getContext("2d")
+                    ctx.reset()
+                    ctx.clearRect(0, 0, width, height)
+
+                    var points = chartBox.series.points || []
+                    var left = 42
+                    var right = 10
+                    var top = 10
+                    var bottom = 26
+                    var graphW = Math.max(1, width - left - right)
+                    var graphH = Math.max(1, height - top - bottom)
+
+                    ctx.strokeStyle = "#E5E7EB"
+                    ctx.lineWidth = 1
+                    ctx.beginPath()
+                    ctx.moveTo(left, top)
+                    ctx.lineTo(left, top + graphH)
+                    ctx.lineTo(left + graphW, top + graphH)
+                    ctx.stroke()
+
+                    if (points.length === 0) {
+                        ctx.fillStyle = "#9CA3AF"
+                        ctx.font = "12px sans-serif"
+                        ctx.fillText("暂无图表数据", left + 8, top + 28)
+                        return
+                    }
+
+                    var maxValue = Math.max(Number(chartBox.series.warning || 0), 1)
+                    for (var i = 0; i < points.length; i++) {
+                        maxValue = Math.max(maxValue, Number(points[i].value || 0))
+                    }
+                    maxValue = maxValue * 1.15
+
+                    ctx.fillStyle = "#6B7280"
+                    ctx.font = "11px sans-serif"
+                    ctx.textAlign = "right"
+                    ctx.fillText(maxValue.toFixed(maxValue >= 10 ? 0 : 1), left - 6, top + 9)
+                    ctx.fillText("0", left - 6, top + graphH)
+
+                    var warning = Number(chartBox.series.warning || 0)
+                    if (warning > 0) {
+                        var warnY = top + graphH - (warning / maxValue) * graphH
+                        ctx.strokeStyle = "#FCA5A5"
+                        ctx.setLineDash([4, 4])
+                        ctx.beginPath()
+                        ctx.moveTo(left, warnY)
+                        ctx.lineTo(left + graphW, warnY)
+                        ctx.stroke()
+                        ctx.setLineDash([])
+                        ctx.fillStyle = "#E11D48"
+                        ctx.textAlign = "left"
+                        ctx.fillText("阈值 " + warning, left + 6, warnY - 4)
+                    }
+
+                    ctx.strokeStyle = chartBox.series.color || "#07C160"
+                    ctx.lineWidth = 2
+                    ctx.beginPath()
+                    for (var j = 0; j < points.length; j++) {
+                        var x = left + (points.length === 1 ? graphW : j / (points.length - 1) * graphW)
+                        var y = top + graphH - (Number(points[j].value || 0) / maxValue) * graphH
+                        if (j === 0) ctx.moveTo(x, y)
+                        else ctx.lineTo(x, y)
+                    }
+                    ctx.stroke()
+
+                    ctx.fillStyle = chartBox.series.color || "#07C160"
+                    for (var k = 0; k < points.length; k += Math.max(1, Math.floor(points.length / 12))) {
+                        var px = left + (points.length === 1 ? graphW : k / (points.length - 1) * graphW)
+                        var py = top + graphH - (Number(points[k].value || 0) / maxValue) * graphH
+                        ctx.beginPath()
+                        ctx.arc(px, py, 2.5, 0, Math.PI * 2)
+                        ctx.fill()
+                    }
+
+                    ctx.fillStyle = "#6B7280"
+                    ctx.font = "11px sans-serif"
+                    ctx.textAlign = "left"
+                    ctx.fillText(points[0].label || "", left, top + graphH + 18)
+                    ctx.textAlign = "right"
+                    ctx.fillText(points[points.length - 1].label || "", left + graphW, top + graphH + 18)
+                }
+            }
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 22
-        spacing: 16
+        spacing: 14
 
         Rectangle {
             Layout.fillWidth: true
-            height: 84
+            height: root.appBackend && root.appBackend.busy ? 112 : 84
             radius: 12
             color: "#FFFFFF"
             border.color: "#E5E7EB"
 
-            RowLayout {
+            ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: 18
-                spacing: 14
+                spacing: 10
 
-                Rectangle {
-                    width: 48
-                    height: 48
-                    radius: 12
-                    color: "#07C160"
-                    Text {
-                        anchors.centerIn: parent
-                        text: "R"
-                        color: "white"
-                        font.pixelSize: 24
-                        font.bold: true
-                    }
-                }
-
-                ColumnLayout {
+                RowLayout {
                     Layout.fillWidth: true
-                    spacing: 4
-                    Text {
-                        text: "BreatheLens 瑞思迈数据分析"
-                        color: "#111827"
-                        font.pixelSize: 22
-                        font.bold: true
+                    spacing: 14
+
+                    Rectangle {
+                        width: 48
+                        height: 48
+                        radius: 12
+                        color: "#07C160"
+                        Text {
+                            anchors.centerIn: parent
+                            text: "R"
+                            color: "white"
+                            font.pixelSize: 24
+                            font.bold: true
+                        }
                     }
-                    Text {
-                        text: root.appBackend && root.appBackend.folder.length > 0 ? root.appBackend.folder : "选择 SD 卡导出的 ResMed 文件夹，自动解析 STR 与 DATALOG。"
-                        color: "#6B7280"
-                        font.pixelSize: 13
-                        elide: Text.ElideMiddle
+
+                    ColumnLayout {
                         Layout.fillWidth: true
+                        spacing: 4
+                        Text {
+                            text: "BreatheLens 瑞思迈数据分析"
+                            color: "#111827"
+                            font.pixelSize: 22
+                            font.bold: true
+                        }
+                        Text {
+                            text: root.appBackend && root.appBackend.folder.length > 0 ? root.appBackend.folder : "选择 SD 卡导出的 ResMed 文件夹，自动解析 STR 与 DATALOG。"
+                            color: "#6B7280"
+                            font.pixelSize: 13
+                            elide: Text.ElideMiddle
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    GhostButton {
+                        text: "选择文件夹"
+                        enabled: root.appBackend && !root.appBackend.busy
+                        onClicked: folderDialog.open()
+                    }
+                    PrimaryButton {
+                        text: "导出 Excel"
+                        enabled: root.appBackend && !root.appBackend.busy
+                        onClicked: exportDialog.open()
                     }
                 }
 
-                GhostButton {
-                    text: "选择文件夹"
-                    enabled: root.appBackend && !root.appBackend.busy
-                    onClicked: folderDialog.open()
-                }
-                PrimaryButton {
-                    text: "导出 Excel"
-                    enabled: root.appBackend && !root.appBackend.busy
-                    onClicked: exportDialog.open()
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: root.appBackend && root.appBackend.busy
+                    spacing: 10
+                    ProgressBar {
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 100
+                        value: root.appBackend ? root.appBackend.progress : 0
+                    }
+                    Text {
+                        width: 44
+                        text: root.appBackend ? root.appBackend.progress + "%" : "0%"
+                        color: "#047857"
+                        font.pixelSize: 12
+                        font.bold: true
+                        horizontalAlignment: Text.AlignRight
+                    }
                 }
             }
         }
@@ -233,8 +414,9 @@ ApplicationWindow {
 
                     RowLayout {
                         Layout.fillWidth: true
+                        spacing: 12
                         Text {
-                            text: "每日汇总"
+                            text: viewTabs.currentIndex === 0 ? "关键指标曲线" : (root.appBackend ? root.appBackend.tableTitle : "明细表")
                             color: "#111827"
                             font.pixelSize: 17
                             font.bold: true
@@ -248,69 +430,72 @@ ApplicationWindow {
                         }
                     }
 
-                    Rectangle {
+                    TabBar {
+                        id: viewTabs
                         Layout.fillWidth: true
-                        height: 36
-                        radius: 8
-                        color: "#F3F4F6"
-                        Row {
-                            anchors.fill: parent
-                            anchors.leftMargin: 8
-                            anchors.rightMargin: 8
-                            spacing: 0
-                            Repeater {
-                                model: ["日期", "使用(h)", "AHI", "CAI", "OAI", "95%漏气", "95%压力", "最小压", "最大压"]
-                                Text {
-                                    width: index === 0 ? 112 : 82
-                                    height: 36
-                                    text: modelData
-                                    color: "#4B5563"
-                                    font.bold: true
-                                    font.pixelSize: 12
-                                    verticalAlignment: Text.AlignVCenter
-                                    horizontalAlignment: index === 0 ? Text.AlignLeft : Text.AlignHCenter
+                        onCurrentIndexChanged: {
+                            if (currentIndex > 0 && root.appBackend) {
+                                root.appBackend.setTableMode(currentIndex - 1)
+                            }
+                        }
+                        TabButton { text: "图表" }
+                        TabButton { text: "STR 汇总" }
+                        TabButton { text: "DATALOG" }
+                        TabButton { text: "漏气观察" }
+                    }
+
+                    StackLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        currentIndex: viewTabs.currentIndex
+
+                        ScrollView {
+                            id: chartScroll
+                            clip: true
+                            contentWidth: availableWidth
+                            ColumnLayout {
+                                width: chartScroll.availableWidth
+                                spacing: 12
+                                Repeater {
+                                    model: root.appBackend ? root.appBackend.chartSeries : []
+                                    MetricChart {
+                                        required property var modelData
+                                        series: modelData
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    TableView {
-                        id: table
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        clip: true
-                        model: tableModel
-                        columnSpacing: 0
-                        rowSpacing: 0
-
-                        columnWidthProvider: function(column) {
-                            return column === 0 ? 112 : 82
-                        }
-                        rowHeightProvider: function(row) {
-                            return 34
-                        }
-                        delegate: Rectangle {
-                            required property var display
-                            required property int row
-                            required property int column
-                            implicitWidth: table.columnWidthProvider(column)
-                            implicitHeight: 34
-                            color: row % 2 === 0 ? "#FFFFFF" : "#FAFBFA"
-                            border.color: "#EEF2F0"
-                            Text {
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            ColumnLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: column === 0 ? 8 : 2
-                                anchors.rightMargin: 2
-                                text: display
-                                color: {
-                                    if (column === 5 && Number(display) >= 24) return "#E11D48"
-                                    if (column === 2 && Number(display) >= 5) return "#D97706"
-                                    return "#1F2937"
-                                }
-                                font.pixelSize: 12
-                                verticalAlignment: Text.AlignVCenter
-                                horizontalAlignment: column === 0 ? Text.AlignLeft : Text.AlignHCenter
-                                elide: Text.ElideRight
+                                spacing: 8
+                                TableHeader { Layout.fillWidth: true }
+                                DetailTable { Layout.fillWidth: true; Layout.fillHeight: true }
+                            }
+                        }
+
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 8
+                                TableHeader { Layout.fillWidth: true }
+                                DetailTable { Layout.fillWidth: true; Layout.fillHeight: true }
+                            }
+                        }
+
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 8
+                                TableHeader { Layout.fillWidth: true }
+                                DetailTable { Layout.fillWidth: true; Layout.fillHeight: true }
                             }
                         }
                     }
@@ -331,6 +516,66 @@ ApplicationWindow {
                 color: "#047857"
                 font.pixelSize: 13
                 verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+            }
+        }
+    }
+
+    component TableHeader: Rectangle {
+        height: 36
+        radius: 8
+        color: "#F3F4F6"
+        Row {
+            anchors.fill: parent
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            spacing: 0
+            Repeater {
+                model: root.appBackend ? root.appBackend.tableHeaders : []
+                Text {
+                    width: root.columnWidth(index)
+                    height: 36
+                    text: modelData
+                    color: "#4B5563"
+                    font.bold: true
+                    font.pixelSize: 12
+                    verticalAlignment: Text.AlignVCenter
+                    horizontalAlignment: index === 0 ? Text.AlignLeft : Text.AlignHCenter
+                    elide: Text.ElideRight
+                }
+            }
+        }
+    }
+
+    component DetailTable: TableView {
+        id: table
+        clip: true
+        model: tableModel
+        columnSpacing: 0
+        rowSpacing: 0
+        columnWidthProvider: function(column) {
+            return root.columnWidth(column)
+        }
+        rowHeightProvider: function(row) {
+            return 34
+        }
+        delegate: Rectangle {
+            required property var display
+            required property int row
+            required property int column
+            implicitWidth: table.columnWidthProvider(column)
+            implicitHeight: 34
+            color: row % 2 === 0 ? "#FFFFFF" : "#FAFBFA"
+            border.color: "#EEF2F0"
+            Text {
+                anchors.fill: parent
+                anchors.leftMargin: column === 0 ? 8 : 2
+                anchors.rightMargin: 2
+                text: display
+                color: root.colorForCell(column, display)
+                font.pixelSize: 12
+                verticalAlignment: Text.AlignVCenter
+                horizontalAlignment: column === 0 ? Text.AlignLeft : Text.AlignHCenter
                 elide: Text.ElideRight
             }
         }

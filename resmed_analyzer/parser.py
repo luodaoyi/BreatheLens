@@ -4,8 +4,12 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
 import re
+from typing import Callable
 
 from .edf import read_annotation_text, read_header, read_records
+
+
+ProgressCallback = Callable[[int, str], None]
 
 
 @dataclass
@@ -191,19 +195,26 @@ def _build_suggestions(result: AnalysisResult) -> list[str]:
     return tips
 
 
-def parse_folder(folder: str | Path) -> AnalysisResult:
+def parse_folder(folder: str | Path, progress: ProgressCallback | None = None) -> AnalysisResult:
     base = Path(folder)
     if not base.exists() or not base.is_dir():
         raise FileNotFoundError(f"目录不存在：{base}")
 
+    def report(value: int, message: str) -> None:
+        if progress:
+            progress(max(0, min(100, value)), message)
+
+    report(1, "正在扫描 EDF 文件...")
     result = AnalysisResult(folder=str(base))
     result.device_name, result.serial = _device_info(base)
     edfs = sorted(base.rglob("*.edf"))
     result.edf_count = len(edfs)
     result.zero_edfs = [str(p.relative_to(base)) for p in edfs if p.stat().st_size == 0]
+    report(8, f"发现 {result.edf_count} 个 EDF 文件。")
 
     str_file = base / "STR.edf"
     if str_file.exists():
+        report(10, "正在解析 STR.edf 每日汇总...")
         parsed = read_records(str_file)
         if parsed:
             _, rows = parsed
@@ -242,6 +253,7 @@ def parse_folder(folder: str | Path) -> AnalysisResult:
                         csr_min=_num(row, "CSR"),
                     )
                 )
+    report(22, f"STR 汇总完成：{len(result.str_days)} 天。")
 
     day_map: dict[str, DataDay] = {}
 
@@ -252,19 +264,29 @@ def parse_folder(folder: str | Path) -> AnalysisResult:
             day_map[iso] = DataDay(date=iso)
         return day_map[iso]
 
-    for p in sorted(base.rglob("*_PLD.edf")):
+    pld_files = sorted(base.rglob("*_PLD.edf"))
+    eve_files = sorted(base.rglob("*_EVE.edf"))
+    total_detail_files = max(1, len(pld_files) + len(eve_files))
+    done_detail_files = 0
+
+    for p in pld_files:
         d = get_day(p)
         header = read_header(p)
         if header is None:
             d.skipped_files += 1
-            continue
-        d.duration_min += header.records * header.record_seconds / 60.0
-        d.sessions += 1
+        else:
+            d.duration_min += header.records * header.record_seconds / 60.0
+            d.sessions += 1
+        done_detail_files += 1
+        if done_detail_files % 25 == 0 or done_detail_files == len(pld_files):
+            report(22 + int(done_detail_files / total_detail_files * 38), f"正在解析会话时长：{done_detail_files}/{total_detail_files}")
 
-    for p in sorted(base.rglob("*_EVE.edf")):
+    for p in eve_files:
         d = get_day(p)
         if p.stat().st_size < 256:
             d.skipped_files += 1
+            done_detail_files += 1
+            report(22 + int(done_detail_files / total_detail_files * 68), f"正在解析事件：{done_detail_files}/{total_detail_files}")
             continue
         for name in _event_names(read_annotation_text(p)):
             if name == "Central Apnea":
@@ -279,7 +301,11 @@ def parse_folder(folder: str | Path) -> AnalysisResult:
                 d.rera += 1
             elif name == "Cheyne-Stokes Respiration":
                 d.csr_events += 1
+        done_detail_files += 1
+        if done_detail_files % 25 == 0 or done_detail_files == total_detail_files:
+            report(22 + int(done_detail_files / total_detail_files * 68), f"正在解析事件：{done_detail_files}/{total_detail_files}")
 
+    report(92, "正在汇总统计指标...")
     result.data_days = sorted((d for d in day_map.values() if d.duration_min > 0), key=lambda x: x.date)
     if result.data_days:
         result.range_start = result.data_days[0].date
@@ -322,4 +348,5 @@ def parse_folder(folder: str | Path) -> AnalysisResult:
         }
     )
     result.suggestions = _build_suggestions(result)
+    report(100, "解析完成。")
     return result
