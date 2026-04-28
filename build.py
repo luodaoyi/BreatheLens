@@ -14,6 +14,11 @@ from pathlib import Path
 APP_NAME = "BreatheLens"
 ROOT = Path(__file__).resolve().parent
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 
 def target_id() -> str:
     value = os.environ.get("BUILD_TARGET")
@@ -71,7 +76,7 @@ def build_executable() -> bool:
         "--show-progress",
         f"--jobs={os.cpu_count()}",
         "--enable-plugin=pyside6",
-        "--include-qt-plugins=platforms,styles,qml,imageformats,iconengines",
+        "--include-qt-plugins=platforms,imageformats,iconengines",
         "--include-module=PySide6.QtCore",
         "--include-module=PySide6.QtGui",
         "--include-module=PySide6.QtQml",
