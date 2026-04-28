@@ -22,6 +22,9 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-hosted:
     name: Build ${{ matrix.target }}
@@ -33,12 +36,6 @@ jobs:
           - target: windows-x64
             os: windows-latest
             python-architecture: x64
-          - target: windows-x86
-            os: windows-latest
-            python-architecture: x86
-          - target: windows-arm64
-            os: windows-11-arm
-            python-architecture: arm64
           - target: macos-arm64
             os: macos-15
             python-architecture: arm64
@@ -85,6 +82,7 @@ jobs:
           BUILD_TARGET: ${{ matrix.target }}
         run: |
           uv run python build.py
+          test -f "dist/BreatheLens-${BUILD_TARGET}.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -100,6 +98,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - target: windows-x86
+            runs-on: '["self-hosted","windows","X86"]'
+          - target: windows-arm64
+            runs-on: '["self-hosted","windows","ARM64"]'
           - target: linux-x86
             runs-on: '["self-hosted","linux","X86"]'
           - target: linux-loongarch64
@@ -118,7 +120,7 @@ jobs:
       - name: Create venv and install dependencies
         shell: bash
         run: |
-          uv venv .venv --python 3.13
+          uv venv .venv --python python
           uv sync
 
       - name: Build one-file binary
@@ -127,6 +129,7 @@ jobs:
           BUILD_TARGET: ${{ matrix.target }}
         run: |
           uv run python build.py
+          test -f "dist/BreatheLens-${BUILD_TARGET}.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
