@@ -51,12 +51,11 @@ def build_executable() -> bool:
         "nuitka",
         "--standalone",
         "--onefile",
-        "--onefile-tempdir-spec={PROGRAM_DIR}/temp",
         "--assume-yes-for-downloads",
         "--show-progress",
         f"--jobs={os.cpu_count()}",
         "--enable-plugin=pyside6",
-        "--include-qt-plugins=platforms,qml",
+        "--include-qt-plugins=platforms,styles,qml,imageformats,iconengines",
         "--include-module=PySide6.QtCore",
         "--include-module=PySide6.QtGui",
         "--include-module=PySide6.QtQml",
@@ -74,7 +73,7 @@ def build_executable() -> bool:
         "main.py",
     ]
     if platform.system() == "Windows":
-        args.insert(-5, "--windows-console-mode=disable")
+        args.insert(-1, "--windows-console-mode=disable")
 
     try:
         run(args)
