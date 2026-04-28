@@ -1,77 +1,79 @@
 # BreatheLens
 
-BreatheLens（呼吸镜）是一个本地运行的瑞思迈 CPAP / APAP 数据分析工具。它读取 ResMed 呼吸机 SD 卡目录，自动解析 EDF 数据，生成每日表格、治疗概览、漏气观察表和调机建议。
+BreatheLens is a local ResMed CPAP / APAP SD card analyzer. It reads the original SD card folder from a ResMed device, parses EDF files, and turns therapy data into daily tables, trend charts, leak review sheets, Excel reports, and pressure-adjustment suggestions.
 
-本项目面向需要快速查看瑞思迈数据的人：无需上传云端，不依赖 OSCAR 数据库，直接选择包含 `STR.edf`、`DATALOG`、`SETTINGS` 的文件夹即可分析。
+The project is built for people who need a quick first look at ResMed data without uploading anything to a cloud service and without importing an OSCAR database. Select the folder that contains `STR.edf`, `DATALOG`, and `SETTINGS`, then analyze it locally.
 
-## 界面预览
+## Languages
 
-主界面提供数据概览、调整建议、语言切换和文件夹选择。
+English is the default README. Full README files are also available in the same languages supported by the application UI.
 
-![BreatheLens 主界面](docs/images/1.png)
+| Language | README |
+| --- | --- |
+| English | [README.md](README.md) |
+| 中文 | [docs/i18n/README.zh.md](docs/i18n/README.zh.md) |
+| Deutsch | [docs/i18n/README.de.md](docs/i18n/README.de.md) |
+| Français | [docs/i18n/README.fr.md](docs/i18n/README.fr.md) |
+| Русский | [docs/i18n/README.ru.md](docs/i18n/README.ru.md) |
+| Español | [docs/i18n/README.es.md](docs/i18n/README.es.md) |
+| Português | [docs/i18n/README.pt.md](docs/i18n/README.pt.md) |
+| 日本語 | [docs/i18n/README.ja.md](docs/i18n/README.ja.md) |
+| 한국어 | [docs/i18n/README.ko.md](docs/i18n/README.ko.md) |
+| العربية | [docs/i18n/README.ar.md](docs/i18n/README.ar.md) |
 
-关键指标图表带时间轴，鼠标悬停时可查看日期和数值。
+## Screenshots
 
-![BreatheLens 关键图表](docs/images/2.png)
+The main screen provides a data overview, adjustment suggestions, language switching, and folder selection.
 
-STR 每日汇总表适合查看长期治疗趋势和压力、漏气、AHI 明细。
+![BreatheLens main screen](docs/images/1.png)
 
-![BreatheLens STR 汇总](docs/images/3.png)
+Trend charts include a time axis. Hover over a point to inspect the date and value.
 
-DATALOG 页面展示会话时长和事件统计。
+![BreatheLens charts](docs/images/2.png)
+
+The STR daily summary table is useful for long-term therapy trends, pressure, leak, and AHI details.
+
+![BreatheLens STR summary](docs/images/3.png)
+
+The DATALOG page shows session duration and event statistics.
 
 ![BreatheLens DATALOG](docs/images/4.png)
 
-漏气观察页用于快速定位需要优先处理的高漏气日期。
+The leak watch page helps identify high-leak days that should be checked first.
 
-![BreatheLens 漏气观察](docs/images/5.png)
+![BreatheLens leak watch](docs/images/5.png)
 
-## 功能
+## Features
 
-- 选择瑞思迈 SD 卡数据文件夹
-- 自动识别设备型号与序列号
-- 解析 `STR.edf` 每日汇总
-- 解析 `DATALOG/*_PLD.edf` 会话时长
-- 解析 `DATALOG/*_EVE.edf` 事件注释
-- 展示每日使用时长、AHI、CAI、OAI、95%漏气、95%压力
-- 界面可直接切换语言：中文、英文、德文、法文、俄文、西班牙文、葡萄牙文、日文、韩文、阿拉伯文
-- 使用后台线程解析大目录，界面保持可操作，并显示实时进度
-- 内置关键指标曲线图：AHI、95%漏气、95%压力
-- 提供 STR 汇总、DATALOG 会话事件、漏气观察三类明细表格
-- 自动给出调整建议：优先判断漏气、压力是否顶上限、中枢事件是否偏高
-- 导出 Excel，包含 Summary、STR_Daily、DATALOG_Daily、Leak_Watch、Suggestions、Codebook
-- PySide6 + QML 界面，微信绿色风格，简单高效
-- Nuitka 单文件打包
+- Select a ResMed SD card data folder.
+- Detect device model and serial number.
+- Parse `STR.edf` daily therapy summaries.
+- Parse `DATALOG/*_PLD.edf` session duration data.
+- Parse `DATALOG/*_EVE.edf` respiratory event annotations.
+- Show daily usage, AHI, CAI, OAI, 95% leak, and 95% pressure.
+- Switch the UI language directly: Chinese, English, German, French, Russian, Spanish, Portuguese, Japanese, Korean, and Arabic.
+- Parse large folders on a background thread while the UI stays responsive and shows live progress.
+- Display built-in trend charts for AHI, 95% leak, and 95% pressure.
+- Provide STR summary, DATALOG session/event details, and leak watch tables.
+- Generate adjustment suggestions by checking leak priority, pressure ceiling behavior, and elevated central events.
+- Export Excel workbooks with `Summary`, `STR_Daily`, `DATALOG_Daily`, `Leak_Watch`, `Suggestions`, and `Codebook` sheets.
+- Provide a PySide6 + QML desktop UI with a simple green visual style.
+- Build a single-file executable with Nuitka.
 
-## Multilingual Overview / 多语言简介
+## Data Files
 
-| Language | Description |
+BreatheLens mainly reads these files:
+
+| File | Purpose |
 | --- | --- |
-| 中文 | BreatheLens 是本地运行的瑞思迈 CPAP / APAP SD 卡数据分析工具，可生成图表、表格、Excel 和调机建议。 |
-| English | BreatheLens is a local ResMed CPAP / APAP SD card analyzer that creates charts, tables, Excel reports, and adjustment suggestions. |
-| Deutsch | BreatheLens analysiert ResMed CPAP-/APAP-SD-Karten lokal und erstellt Diagramme, Tabellen, Excel-Berichte und Einstellhinweise. |
-| Français | BreatheLens analyse localement les cartes SD ResMed CPAP / APAP et produit des graphiques, des tableaux, des rapports Excel et des conseils de réglage. |
-| Русский | BreatheLens локально анализирует SD-карты ResMed CPAP / APAP и создает графики, таблицы, отчеты Excel и рекомендации по настройке. |
-| Español | BreatheLens analiza localmente tarjetas SD de ResMed CPAP / APAP y genera gráficos, tablas, informes Excel y sugerencias de ajuste. |
-| Português | BreatheLens analisa localmente cartões SD ResMed CPAP / APAP e gera gráficos, tabelas, relatórios Excel e sugestões de ajuste. |
-| 日本語 | BreatheLens は ResMed CPAP / APAP の SD カードをローカルで解析し、グラフ、表、Excel レポート、調整案を作成します。 |
-| 한국어 | BreatheLens는 ResMed CPAP / APAP SD 카드를 로컬에서 분석하고 차트, 표, Excel 보고서, 조정 제안을 생성합니다. |
-| العربية | يحلل BreatheLens بطاقات SD لأجهزة ResMed CPAP / APAP محليا وينشئ رسوما بيانية وجداول وتقارير Excel واقتراحات ضبط. |
+| `Identification.tgt` | Device model and serial number |
+| `STR.edf` | Daily therapy summary, including AHI, leak, pressure, and settings |
+| `DATALOG/*_PLD.edf` | Session duration and low-frequency therapy signals |
+| `DATALOG/*_EVE.edf` | Respiratory event annotations |
 
-## 数据说明
+Suggestions in the report are based on data trends. They are not a medical diagnosis and cannot replace professional care. If central apnea index stays high, oxygen levels are low at night, chest tightness or palpitations occur, or daytime sleepiness is obvious, take the original data to a clinician.
 
-BreatheLens 主要读取以下文件：
-
-| 文件 | 用途 |
-| --- | --- |
-| `Identification.tgt` | 设备型号、序列号 |
-| `STR.edf` | 每日治疗汇总，含 AHI、漏气、压力、设置 |
-| `DATALOG/*_PLD.edf` | 会话时长与低频治疗曲线 |
-| `DATALOG/*_EVE.edf` | 呼吸事件注释 |
-
-报告中的建议以数据趋势为依据，不能替代医生诊断。若出现 CAI 持续升高、夜间低氧、胸闷心悸、明显嗜睡等情况，应携带原始数据就医。
-
-## 开发运行
+## Development
 
 ```powershell
 uv venv .venv
@@ -79,25 +81,25 @@ uv sync
 uv run python main.py
 ```
 
-## 本地打包
+## Local Build
 
 ```powershell
 uv run python build.py
 ```
 
-输出位于 `dist/`，例如：
+Build output is written to `dist/`, for example:
 
 ```text
 dist/BreatheLens.exe
 dist/BreatheLens-windows-x64.zip
 ```
 
-## GitHub Actions 发布
+## GitHub Actions Release
 
-仓库内置 `.github/workflows/release.yml`：
+The repository includes `.github/workflows/release.yml`.
 
-- push tag `v*` 时自动构建并发布 Release
-- 默认构建 GitHub 托管 runner 支持的平台：
+- Pushing a `v*` tag builds and publishes a release.
+- GitHub-hosted runners build:
   - Windows x64
   - Windows x86
   - Windows ARM64
@@ -105,21 +107,21 @@ dist/BreatheLens-windows-x64.zip
   - macOS Intel x64
   - Linux x64
   - Linux ARM64
-- 其他平台需要自托管 runner：
-  - Linux x86：标签 `self-hosted, linux, X86`
-  - Linux LoongArch64 / 龙芯：标签 `self-hosted, linux, LoongArch64`
+- Other platforms need self-hosted runners:
+  - Linux x86: `self-hosted, linux, X86`
+  - Linux LoongArch64: `self-hosted, linux, LoongArch64`
 
-手动触发 workflow 时，可打开 `build_self_hosted` 来构建这些自托管平台。原因是 Nuitka + PySide6 本质上应在目标系统/架构原生编译；若没有对应 runner，GitHub Actions 无法凭空交叉编译 Qt GUI 程序。
+When manually running the workflow, enable `build_self_hosted` to build those self-hosted platforms. Nuitka + PySide6 should be compiled on the target operating system and architecture; without a matching runner, GitHub Actions cannot reliably cross-compile a Qt GUI application.
 
-发布方式：
+Release by tag:
 
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-也可以手动触发 workflow，并填写 `release_tag`，例如 `v0.1.0`。
+You can also run the workflow manually and provide `release_tag`, for example `v0.1.0`.
 
-## 许可证
+## License
 
-MIT License。详见 [LICENSE](LICENSE)。
+MIT License. See [LICENSE](LICENSE).
