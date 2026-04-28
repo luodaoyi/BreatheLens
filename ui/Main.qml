@@ -11,13 +11,22 @@ ApplicationWindow {
     title: "BreatheLens"
     color: "#F5F7F6"
     readonly property var appBackend: backend
+    property int activeTab: 0
+
+    function switchTab(index) {
+        activeTab = index
+        if (!root.appBackend) return
+        if (index === 2) root.appBackend.setTableMode(0)
+        else if (index === 3) root.appBackend.setTableMode(1)
+        else if (index === 4) root.appBackend.setTableMode(2)
+    }
 
     function columnWidth(column) {
         var count = root.appBackend ? root.appBackend.tableHeaders.length : 0
-        if (column === 0) return 112
-        if (count >= 11) return 74
-        if (count <= 7) return 96
-        return 82
+        if (column === 0) return 120
+        if (count >= 11) return 90
+        if (count <= 7) return 120
+        return 104
     }
 
     function colorForCell(column, value) {
@@ -28,8 +37,6 @@ ApplicationWindow {
         if (name.indexOf("AHI") >= 0 && numberValue >= 5) return "#D97706"
         return "#1F2937"
     }
-
-    FontLoader { id: uiFont; source: "" }
 
     FolderDialog {
         id: folderDialog
@@ -89,7 +96,7 @@ ApplicationWindow {
         id: chartBox
         required property var series
         Layout.fillWidth: true
-        Layout.preferredHeight: 190
+        Layout.preferredHeight: 220
         radius: 10
         color: "#FFFFFF"
         border.color: "#E5E7EB"
@@ -103,8 +110,8 @@ ApplicationWindow {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 12
-            spacing: 6
+            anchors.margins: 14
+            spacing: 8
 
             RowLayout {
                 Layout.fillWidth: true
@@ -118,7 +125,7 @@ ApplicationWindow {
                 Text {
                     text: chartBox.series.title || ""
                     color: "#111827"
-                    font.pixelSize: 14
+                    font.pixelSize: 15
                     font.bold: true
                     Layout.fillWidth: true
                 }
@@ -134,6 +141,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 antialiasing: true
+                Component.onCompleted: requestPaint()
                 onWidthChanged: requestPaint()
                 onHeightChanged: requestPaint()
                 onPaint: {
@@ -142,10 +150,10 @@ ApplicationWindow {
                     ctx.clearRect(0, 0, width, height)
 
                     var points = chartBox.series.points || []
-                    var left = 42
-                    var right = 10
-                    var top = 10
-                    var bottom = 26
+                    var left = 48
+                    var right = 18
+                    var top = 12
+                    var bottom = 30
                     var graphW = Math.max(1, width - left - right)
                     var graphH = Math.max(1, height - top - bottom)
 
@@ -159,8 +167,8 @@ ApplicationWindow {
 
                     if (points.length === 0) {
                         ctx.fillStyle = "#9CA3AF"
-                        ctx.font = "12px sans-serif"
-                        ctx.fillText("暂无图表数据", left + 8, top + 28)
+                        ctx.font = "13px sans-serif"
+                        ctx.fillText("暂无图表数据", left + 8, top + 30)
                         return
                     }
 
@@ -173,8 +181,8 @@ ApplicationWindow {
                     ctx.fillStyle = "#6B7280"
                     ctx.font = "11px sans-serif"
                     ctx.textAlign = "right"
-                    ctx.fillText(maxValue.toFixed(maxValue >= 10 ? 0 : 1), left - 6, top + 9)
-                    ctx.fillText("0", left - 6, top + graphH)
+                    ctx.fillText(maxValue.toFixed(maxValue >= 10 ? 0 : 1), left - 8, top + 8)
+                    ctx.fillText("0", left - 8, top + graphH)
 
                     var warning = Number(chartBox.series.warning || 0)
                     if (warning > 0) {
@@ -188,7 +196,7 @@ ApplicationWindow {
                         ctx.setLineDash([])
                         ctx.fillStyle = "#E11D48"
                         ctx.textAlign = "left"
-                        ctx.fillText("阈值 " + warning, left + 6, warnY - 4)
+                        ctx.fillText("阈值 " + warning, left + 8, warnY - 5)
                     }
 
                     ctx.strokeStyle = chartBox.series.color || "#07C160"
@@ -203,7 +211,8 @@ ApplicationWindow {
                     ctx.stroke()
 
                     ctx.fillStyle = chartBox.series.color || "#07C160"
-                    for (var k = 0; k < points.length; k += Math.max(1, Math.floor(points.length / 12))) {
+                    var step = Math.max(1, Math.floor(points.length / 12))
+                    for (var k = 0; k < points.length; k += step) {
                         var px = left + (points.length === 1 ? graphW : k / (points.length - 1) * graphW)
                         var py = top + graphH - (Number(points[k].value || 0) / maxValue) * graphH
                         ctx.beginPath()
@@ -214,10 +223,81 @@ ApplicationWindow {
                     ctx.fillStyle = "#6B7280"
                     ctx.font = "11px sans-serif"
                     ctx.textAlign = "left"
-                    ctx.fillText(points[0].label || "", left, top + graphH + 18)
+                    ctx.fillText(points[0].label || "", left, top + graphH + 20)
                     ctx.textAlign = "right"
-                    ctx.fillText(points[points.length - 1].label || "", left + graphW, top + graphH + 18)
+                    ctx.fillText(points[points.length - 1].label || "", left + graphW, top + graphH + 20)
                 }
+            }
+        }
+    }
+
+    component Panel: Rectangle {
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        radius: 12
+        color: "#FFFFFF"
+        border.color: "#E5E7EB"
+    }
+
+    component TableHeader: Rectangle {
+        Layout.fillWidth: true
+        height: 38
+        radius: 8
+        color: "#F3F4F6"
+        Row {
+            anchors.fill: parent
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            spacing: 0
+            Repeater {
+                model: root.appBackend ? root.appBackend.tableHeaders : []
+                Text {
+                    width: root.columnWidth(index)
+                    height: 38
+                    text: modelData
+                    color: "#4B5563"
+                    font.bold: true
+                    font.pixelSize: 12
+                    verticalAlignment: Text.AlignVCenter
+                    horizontalAlignment: index === 0 ? Text.AlignLeft : Text.AlignHCenter
+                    elide: Text.ElideRight
+                }
+            }
+        }
+    }
+
+    component DetailTable: TableView {
+        id: table
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        clip: true
+        model: tableModel
+        columnSpacing: 0
+        rowSpacing: 0
+        columnWidthProvider: function(column) {
+            return root.columnWidth(column)
+        }
+        rowHeightProvider: function(row) {
+            return 34
+        }
+        delegate: Rectangle {
+            required property var display
+            required property int row
+            required property int column
+            implicitWidth: table.columnWidthProvider(column)
+            implicitHeight: 34
+            color: row % 2 === 0 ? "#FFFFFF" : "#FAFBFA"
+            border.color: "#EEF2F0"
+            Text {
+                anchors.fill: parent
+                anchors.leftMargin: column === 0 ? 8 : 2
+                anchors.rightMargin: 2
+                text: display
+                color: root.colorForCell(column, display)
+                font.pixelSize: 12
+                verticalAlignment: Text.AlignVCenter
+                horizontalAlignment: column === 0 ? Text.AlignLeft : Text.AlignHCenter
+                elide: Text.ElideRight
             }
         }
     }
@@ -309,196 +389,171 @@ ApplicationWindow {
             }
         }
 
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 16
-
+        Panel {
             ColumnLayout {
-                Layout.preferredWidth: 390
-                Layout.fillHeight: true
-                spacing: 16
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 12
 
-                Rectangle {
+                RowLayout {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 230
-                    radius: 12
-                    color: "#FFFFFF"
-                    border.color: "#E5E7EB"
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 18
-                        spacing: 10
-                        Text {
-                            text: "概览"
-                            color: "#111827"
-                            font.pixelSize: 17
-                            font.bold: true
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            text: root.appBackend ? root.appBackend.summary : ""
-                            color: "#374151"
-                            font.pixelSize: 14
-                            lineHeight: 1.25
-                            wrapMode: Text.WordWrap
-                        }
-                    }
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    radius: 12
-                    color: "#FFFFFF"
-                    border.color: "#E5E7EB"
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 18
-                        spacing: 10
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Text {
-                                text: "调整建议"
-                                color: "#111827"
-                                font.pixelSize: 17
-                                font.bold: true
-                                Layout.fillWidth: true
-                            }
-                            Rectangle {
-                                radius: 8
-                                color: "#E9F7EF"
-                                width: 74
-                                height: 26
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "先治漏气"
-                                    color: "#07A855"
-                                    font.pixelSize: 12
-                                    font.bold: true
-                                }
-                            }
-                        }
-                        ScrollView {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            clip: true
-                            TextArea {
-                                text: root.appBackend ? root.appBackend.suggestions : ""
-                                readOnly: true
-                                wrapMode: Text.WordWrap
-                                color: "#374151"
-                                font.pixelSize: 14
-                                selectByMouse: true
-                                background: Rectangle { color: "transparent" }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                radius: 12
-                color: "#FFFFFF"
-                border.color: "#E5E7EB"
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 16
                     spacing: 12
-
-                    RowLayout {
+                    Rectangle {
+                        id: tabStrip
+                        objectName: "tabStrip"
                         Layout.fillWidth: true
-                        spacing: 12
-                        Text {
-                            text: viewTabs.currentIndex === 0 ? "关键指标曲线" : (root.appBackend ? root.appBackend.tableTitle : "明细表")
-                            color: "#111827"
-                            font.pixelSize: 17
-                            font.bold: true
-                            Layout.fillWidth: true
-                        }
-                        BusyIndicator {
-                            running: root.appBackend && root.appBackend.busy
-                            visible: root.appBackend && root.appBackend.busy
-                            implicitWidth: 28
-                            implicitHeight: 28
-                        }
-                    }
-
-                    TabBar {
-                        id: viewTabs
-                        Layout.fillWidth: true
-                        onCurrentIndexChanged: {
-                            if (currentIndex > 0 && root.appBackend) {
-                                root.appBackend.setTableMode(currentIndex - 1)
-                            }
-                        }
-                        TabButton { text: "图表" }
-                        TabButton { text: "STR 汇总" }
-                        TabButton { text: "DATALOG" }
-                        TabButton { text: "漏气观察" }
-                    }
-
-                    StackLayout {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        currentIndex: viewTabs.currentIndex
-
-                        ScrollView {
-                            id: chartScroll
-                            clip: true
-                            contentWidth: availableWidth
-                            ColumnLayout {
-                                width: chartScroll.availableWidth
-                                spacing: 12
-                                Repeater {
-                                    model: root.appBackend ? root.appBackend.chartSeries : []
-                                    MetricChart {
-                                        required property var modelData
-                                        series: modelData
+                        height: 44
+                        radius: 8
+                        color: "#F3F4F6"
+                        border.color: "#E5E7EB"
+                        Row {
+                            anchors.fill: parent
+                            anchors.margins: 4
+                            spacing: 4
+                            Repeater {
+                                model: ["概览与建议", "关键图表", "STR 汇总", "DATALOG", "漏气观察"]
+                                Rectangle {
+                                    width: (tabStrip.width - 24) / 5
+                                    height: 36
+                                    radius: 7
+                                    color: root.activeTab === index ? "#07C160" : "transparent"
+                                    border.color: root.activeTab === index ? "#07C160" : "transparent"
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData
+                                        color: root.activeTab === index ? "#FFFFFF" : "#374151"
+                                        font.pixelSize: 14
+                                        font.bold: root.activeTab === index
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.switchTab(index)
                                     }
                                 }
                             }
                         }
+                    }
+                    BusyIndicator {
+                        running: root.appBackend && root.appBackend.busy
+                        visible: root.appBackend && root.appBackend.busy
+                        implicitWidth: 28
+                        implicitHeight: 28
+                    }
+                }
 
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            ColumnLayout {
-                                anchors.fill: parent
-                                spacing: 8
-                                TableHeader { Layout.fillWidth: true }
-                                DetailTable { Layout.fillWidth: true; Layout.fillHeight: true }
+                StackLayout {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    currentIndex: root.activeTab
+
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        RowLayout {
+                            anchors.fill: parent
+                            spacing: 14
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                radius: 10
+                                color: "#FAFBFA"
+                                border.color: "#E5E7EB"
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 18
+                                    spacing: 12
+                                    Text {
+                                        text: "概览"
+                                        color: "#111827"
+                                        font.pixelSize: 18
+                                        font.bold: true
+                                    }
+                                    Text {
+                                        Layout.fillWidth: true
+                                        Layout.fillHeight: true
+                                        text: root.appBackend ? root.appBackend.summary : ""
+                                        color: "#374151"
+                                        font.pixelSize: 15
+                                        lineHeight: 1.28
+                                        wrapMode: Text.WordWrap
+                                    }
+                                }
                             }
-                        }
 
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            ColumnLayout {
-                                anchors.fill: parent
-                                spacing: 8
-                                TableHeader { Layout.fillWidth: true }
-                                DetailTable { Layout.fillWidth: true; Layout.fillHeight: true }
-                            }
-                        }
-
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            ColumnLayout {
-                                anchors.fill: parent
-                                spacing: 8
-                                TableHeader { Layout.fillWidth: true }
-                                DetailTable { Layout.fillWidth: true; Layout.fillHeight: true }
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                radius: 10
+                                color: "#FAFBFA"
+                                border.color: "#E5E7EB"
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 18
+                                    spacing: 12
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Text {
+                                            text: "调整建议"
+                                            color: "#111827"
+                                            font.pixelSize: 18
+                                            font.bold: true
+                                            Layout.fillWidth: true
+                                        }
+                                        Rectangle {
+                                            radius: 8
+                                            color: "#E9F7EF"
+                                            width: 74
+                                            height: 26
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "先治漏气"
+                                                color: "#07A855"
+                                                font.pixelSize: 12
+                                                font.bold: true
+                                            }
+                                        }
+                                    }
+                                    ScrollView {
+                                        Layout.fillWidth: true
+                                        Layout.fillHeight: true
+                                        clip: true
+                                        TextArea {
+                                            text: root.appBackend ? root.appBackend.suggestions : ""
+                                            readOnly: true
+                                            wrapMode: Text.WordWrap
+                                            color: "#374151"
+                                            font.pixelSize: 15
+                                            selectByMouse: true
+                                            background: Rectangle { color: "transparent" }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
+
+                    ScrollView {
+                        id: chartScroll
+                        clip: true
+                        contentWidth: availableWidth
+                        ColumnLayout {
+                            width: chartScroll.availableWidth
+                            spacing: 12
+                            Repeater {
+                                model: root.appBackend ? root.appBackend.chartSeries : []
+                                MetricChart {
+                                    required property var modelData
+                                    series: modelData
+                                }
+                            }
+                        }
+                    }
+
+                    TablePage {}
+                    TablePage {}
+                    TablePage {}
                 }
             }
         }
@@ -521,63 +576,21 @@ ApplicationWindow {
         }
     }
 
-    component TableHeader: Rectangle {
-        height: 36
-        radius: 8
-        color: "#F3F4F6"
-        Row {
+    component TablePage: Item {
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        ColumnLayout {
             anchors.fill: parent
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            spacing: 0
-            Repeater {
-                model: root.appBackend ? root.appBackend.tableHeaders : []
-                Text {
-                    width: root.columnWidth(index)
-                    height: 36
-                    text: modelData
-                    color: "#4B5563"
-                    font.bold: true
-                    font.pixelSize: 12
-                    verticalAlignment: Text.AlignVCenter
-                    horizontalAlignment: index === 0 ? Text.AlignLeft : Text.AlignHCenter
-                    elide: Text.ElideRight
-                }
-            }
-        }
-    }
-
-    component DetailTable: TableView {
-        id: table
-        clip: true
-        model: tableModel
-        columnSpacing: 0
-        rowSpacing: 0
-        columnWidthProvider: function(column) {
-            return root.columnWidth(column)
-        }
-        rowHeightProvider: function(row) {
-            return 34
-        }
-        delegate: Rectangle {
-            required property var display
-            required property int row
-            required property int column
-            implicitWidth: table.columnWidthProvider(column)
-            implicitHeight: 34
-            color: row % 2 === 0 ? "#FFFFFF" : "#FAFBFA"
-            border.color: "#EEF2F0"
+            spacing: 10
             Text {
-                anchors.fill: parent
-                anchors.leftMargin: column === 0 ? 8 : 2
-                anchors.rightMargin: 2
-                text: display
-                color: root.colorForCell(column, display)
-                font.pixelSize: 12
-                verticalAlignment: Text.AlignVCenter
-                horizontalAlignment: column === 0 ? Text.AlignLeft : Text.AlignHCenter
-                elide: Text.ElideRight
+                Layout.fillWidth: true
+                text: root.appBackend ? root.appBackend.tableTitle : "明细表"
+                color: "#111827"
+                font.pixelSize: 17
+                font.bold: true
             }
+            TableHeader {}
+            DetailTable {}
         }
     }
 }
