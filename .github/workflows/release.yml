@@ -78,6 +78,12 @@ jobs:
           uv venv .venv --python python
           uv sync
 
+      - name: Normalize macOS Intel OpenSSL links
+        if: matrix.target == 'macos-x64'
+        shell: bash
+        run: |
+          sudo rm -f /usr/local/lib/libcrypto.dylib /usr/local/lib/libssl.dylib
+
       - name: Build one-file binary
         shell: bash
         env:
