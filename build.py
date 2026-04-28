@@ -95,6 +95,9 @@ def build_executable() -> bool:
     ]
     if platform.system() == "Windows":
         args.insert(-1, "--windows-console-mode=disable")
+    elif platform.system() == "Darwin":
+        args.insert(-1, "--noinclude-dlls=/usr/local/lib/libcrypto.dylib")
+        args.insert(-1, "--noinclude-dlls=/usr/local/lib/libssl.dylib")
 
     try:
         run(args)
