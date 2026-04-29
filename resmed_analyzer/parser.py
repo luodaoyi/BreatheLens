@@ -142,20 +142,26 @@ def _summarize_str(days: list[StrDay], prefix: str) -> dict[str, float | int]:
             f"{prefix}_avg_cai": 0.0,
             f"{prefix}_avg_oai": 0.0,
         }
+    usage_stats = _stats([d.usage_hr for d in days])
+    ahi_stats = _stats([d.ahi for d in days])
+    leak_stats = _stats([d.leak95_lmin for d in days])
+    pressure_stats = _stats([d.pressure95 for d in days])
+    cai_stats = _stats([d.cai for d in days])
+    oai_stats = _stats([d.oai for d in days])
     return {
         f"{prefix}_days": len(days),
         f"{prefix}_days4h": sum(1 for d in days if d.duration_min >= 240),
-        f"{prefix}_avg_usage_hr": _stats([d.usage_hr for d in days])["avg"],
-        f"{prefix}_median_usage_hr": _stats([d.usage_hr for d in days])["median"],
-        f"{prefix}_avg_ahi": _stats([d.ahi for d in days])["avg"],
-        f"{prefix}_median_ahi": _stats([d.ahi for d in days])["median"],
-        f"{prefix}_max_ahi": _stats([d.ahi for d in days])["max"],
-        f"{prefix}_avg_leak95": _stats([d.leak95_lmin for d in days])["avg"],
-        f"{prefix}_median_leak95": _stats([d.leak95_lmin for d in days])["median"],
+        f"{prefix}_avg_usage_hr": usage_stats["avg"],
+        f"{prefix}_median_usage_hr": usage_stats["median"],
+        f"{prefix}_avg_ahi": ahi_stats["avg"],
+        f"{prefix}_median_ahi": ahi_stats["median"],
+        f"{prefix}_max_ahi": ahi_stats["max"],
+        f"{prefix}_avg_leak95": leak_stats["avg"],
+        f"{prefix}_median_leak95": leak_stats["median"],
         f"{prefix}_leak_over24_days": sum(1 for d in days if d.leak95_lmin >= 24),
-        f"{prefix}_avg_pressure95": _stats([d.pressure95 for d in days])["avg"],
-        f"{prefix}_avg_cai": _stats([d.cai for d in days])["avg"],
-        f"{prefix}_avg_oai": _stats([d.oai for d in days])["avg"],
+        f"{prefix}_avg_pressure95": pressure_stats["avg"],
+        f"{prefix}_avg_cai": cai_stats["avg"],
+        f"{prefix}_avg_oai": oai_stats["avg"],
     }
 
 
@@ -264,8 +270,14 @@ def parse_folder(folder: str | Path, progress: ProgressCallback | None = None) -
             day_map[iso] = DataDay(date=iso)
         return day_map[iso]
 
-    pld_files = sorted(base.rglob("*_PLD.edf"))
-    eve_files = sorted(base.rglob("*_EVE.edf"))
+    pld_files: list[Path] = []
+    eve_files: list[Path] = []
+    for path in edfs:
+        name = path.name
+        if name.endswith("_PLD.edf"):
+            pld_files.append(path)
+        elif name.endswith("_EVE.edf"):
+            eve_files.append(path)
     total_detail_files = max(1, len(pld_files) + len(eve_files))
     done_detail_files = 0
 
@@ -281,6 +293,15 @@ def parse_folder(folder: str | Path, progress: ProgressCallback | None = None) -
         if done_detail_files % 25 == 0 or done_detail_files == len(pld_files):
             report(22 + int(done_detail_files / total_detail_files * 38), f"正在解析会话时长：{done_detail_files}/{total_detail_files}")
 
+    event_counter_map = {
+        "Central Apnea": "central_apnea",
+        "Obstructive Apnea": "obstructive_apnea",
+        "Hypopnea": "hypopnea",
+        "Apnea": "apnea",
+        "RERA": "rera",
+        "Cheyne-Stokes Respiration": "csr_events",
+    }
+
     for p in eve_files:
         d = get_day(p)
         if p.stat().st_size < 256:
@@ -289,18 +310,9 @@ def parse_folder(folder: str | Path, progress: ProgressCallback | None = None) -
             report(22 + int(done_detail_files / total_detail_files * 68), f"正在解析事件：{done_detail_files}/{total_detail_files}")
             continue
         for name in _event_names(read_annotation_text(p)):
-            if name == "Central Apnea":
-                d.central_apnea += 1
-            elif name == "Obstructive Apnea":
-                d.obstructive_apnea += 1
-            elif name == "Hypopnea":
-                d.hypopnea += 1
-            elif name == "Apnea":
-                d.apnea += 1
-            elif name == "RERA":
-                d.rera += 1
-            elif name == "Cheyne-Stokes Respiration":
-                d.csr_events += 1
+            target = event_counter_map.get(name)
+            if target:
+                setattr(d, target, getattr(d, target) + 1)
         done_detail_files += 1
         if done_detail_files % 25 == 0 or done_detail_files == total_detail_files:
             report(22 + int(done_detail_files / total_detail_files * 68), f"正在解析事件：{done_detail_files}/{total_detail_files}")
@@ -318,11 +330,12 @@ def parse_folder(folder: str | Path, progress: ProgressCallback | None = None) -
         start = date.fromisoformat(result.range_start)
         end = date.fromisoformat(result.range_end)
         have = {d.date for d in result.data_days}
-        result.missing_dates = [
-            (start + timedelta(days=i)).isoformat()
-            for i in range((end - start).days + 1)
-            if (start + timedelta(days=i)).isoformat() not in have
-        ]
+        missing_dates: list[str] = []
+        for i in range((end - start).days + 1):
+            day = (start + timedelta(days=i)).isoformat()
+            if day not in have:
+                missing_dates.append(day)
+        result.missing_dates = missing_dates
 
     result.summary.update(_summarize_str(result.str_days, "year"))
     result.summary.update(_summarize_str(result.str_days[-90:], "last90"))
