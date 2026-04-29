@@ -253,6 +253,11 @@ ApplicationWindow {
         else if (index === 4) root.appBackend.setTableMode(2)
     }
 
+    function applyLanguage(code) {
+        languageCode = code
+        if (root.appBackend) root.appBackend.setLanguage(languageCode)
+    }
+
     function columnWidth(column) {
         var count = root.appBackend ? root.appBackend.tableHeaders.length : 0
         if (column === 0) return 120
@@ -696,13 +701,14 @@ ApplicationWindow {
                         }
                         ComboBox {
                             id: languageBox
+                            objectName: "languageBox"
                             model: root.languageOptions
                             textRole: "name"
                             valueRole: "code"
                             currentIndex: root.currentLanguageIndex()
                             implicitWidth: 132
                             onActivated: function(index) {
-                                root.languageCode = root.languageOptions[index].code
+                                root.applyLanguage(root.languageOptions[index].code)
                             }
                         }
                     }
@@ -926,6 +932,10 @@ ApplicationWindow {
                 elide: Text.ElideRight
             }
         }
+    }
+
+    Component.onCompleted: {
+        root.applyLanguage(root.languageCode)
     }
 
     component TablePage: Item {
